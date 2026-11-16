@@ -1,0 +1,6 @@
+{
+  "name": "SONORA",
+  "description": "Your Music. Your World. Premium cross-platform music player and streaming experience for Android and iOS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <defs>
+    <linearGradient id="casing" x1="32" y1="32" x2="480" y2="480" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#261D20"/>
+      <stop offset="55%" stop-color="#140E10"/>
+      <stop offset="100%" stop-color="#070506"/>
+    </linearGradient>
+    <linearGradient id="label" x1="80" y1="112" x2="432" y2="352" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FAF5F2"/>
+      <stop offset="100%" stop-color="#E6DADA"/>
+    </linearGradient>
+    <linearGradient id="crimson" x1="64" y1="112" x2="448" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#EF4444"/>
+      <stop offset="50%" stop-color="#DC2626"/>
+      <stop offset="100%" stop-color="#991B1B"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="url(#casing)"/>
+  <rect x="12" y="12" width="488" height="488" rx="108" stroke="#EF4444" stroke-opacity="0.35" stroke-width="8"/>
+
+  <rect x="56" y="104" width="400" height="264" rx="40" fill="url(#label)"/>
+  <path d="M56 144 C56 121.9 73.9 104 96 104 H416 C438.1 104 456 121.9 456 144 V176 H56 V144 Z" fill="url(#crimson)"/>
+  <rect x="56" y="182" width="400" height="16" fill="#450A0A" fill-opacity="0.9"/>
+
+  <text x="256" y="160" text-anchor="middle" fill="#450A0A" fill-opacity="0.34" font-size="24" font-weight="700" letter-spacing="14" font-family="monospace">MR SAI</text>
+
+  <rect x="92" y="216" width="328" height="116" rx="58" fill="#0B0809" stroke="#7F1D1D" stroke-width="8"/>
+
+  <rect x="192" y="258" width="128" height="32" rx="8" fill="#1F1619"/>
+  <rect x="212" y="266" width="88" height="16" rx="8" fill="#EF4444" fill-opacity="0.45"/>
+
+  <g>
+    <circle cx="164" cy="274" r="42" fill="#FAF5F2" stroke="#DC2626" stroke-width="8"/>
+    <circle cx="164" cy="274" r="18" fill="#0B0809"/>
+    <g stroke="#0B0809" stroke-width="10" stroke-linecap="round">
+      <line x1="164" y1="238" x2="164" y2="252"/>
+      <line x1="164" y1="296" x2="164" y2="310"/>
+      <line x1="128" y1="274" x2="142" y2="274"/>
+      <line x1="186" y1="274" x2="200" y2="274"/>
+    </g>
+  </g>
+
+  <g>
+    <circle cx="348" cy="274" r="42" fill="#FAF5F2" stroke="#DC2626" stroke-width="8"/>
+    <circle cx="348" cy="274" r="18" fill="#0B0809"/>
+    <g stroke="#0B0809" stroke-width="10" stroke-linecap="round">
+      <line x1="348" y1="238" x2="348" y2="252"/>
+      <line x1="348" y1="296" x2="348" y2="310"/>
+      <line x1="312" y1="274" x2="326" y2="274"/>
+      <line x1="370" y1="274" x2="384" y2="274"/>
+    </g>
+  </g>
+
+  <path d="M120 456 L152 396 H360 L392 456 Z" fill="#070506" stroke="#EF4444" stroke-opacity="0.3" stroke-width="6"/>
+  <circle cx="168" cy="428" r="9" fill="#EF4444" fill-opacity="0.65"/>
+  <circle cx="344" cy="428" r="9" fill="#EF4444" fill-opacity="0.65"/>
+
+  <rect x="218" y="416" width="13" height="26" rx="6.5" fill="#EF4444"/>
+  <rect x="242" y="410" width="13" height="32" rx="6.5" fill="#DC2626"/>
+  <rect x="266" y="413" width="13" height="29" rx="6.5" fill="#F87171"/>
+  <rect x="290" y="418" width="13" height="24" rx="6.5" fill="#DC2626"/>
+</svg>
