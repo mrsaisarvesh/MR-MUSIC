@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, FolderPlus, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FolderPlus } from 'lucide-react';
+import { RETRO_WALLPAPER } from '../../assets/artwork';
 
 interface CreatePlaylistModalProps {
   isOpen: boolean;
@@ -16,9 +17,14 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [artwork] = useState(
-    '/src/assets/images/retro_red_black_wallpaper_1794859414205.jpg'
-  );
+  const artwork = RETRO_WALLPAPER;
+
+  useEffect(() => {
+    if (!isOpen) {
+      setTitle('');
+      setDescription('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -29,6 +35,8 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({
     e.preventDefault();
     if (!title.trim()) return;
     onCreate(title.trim(), description.trim(), artwork);
+    setTitle('');
+    setDescription('');
     onClose();
   };
 

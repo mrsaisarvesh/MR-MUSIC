@@ -137,8 +137,7 @@ export class DownloadManager {
   async deleteDownload(songId: string): Promise<void> {
     await DatabaseService.deleteAudioBlob(songId);
     this.downloads.delete(songId);
-    const db = await (await import('../../database/db')).getDB();
-    await db.delete('downloads', songId);
-    this.events.emit('downloadUpdate', { songId, status: 'CANCELLED' } as any);
+    await DatabaseService.deleteDownloadItem(songId);
+    this.events.emit('downloadUpdate', { songId, status: 'CANCELLED' } as unknown as DownloadItem);
   }
 }

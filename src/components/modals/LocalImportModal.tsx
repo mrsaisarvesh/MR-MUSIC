@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { X, Upload, CheckCircle2, FileAudio, FolderSearch } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Upload, CheckCircle2, FileAudio, FolderSearch, AlertCircle } from 'lucide-react';
 import { LocalMusicService } from '../../services/localMusic/LocalMusicService';
 import { Song } from '../../types';
 
@@ -22,47 +22,69 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setIsProcessing(false);
+      setImportedCount(null);
+      setErrorMsg(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleFiles = async (files: FileList | File[], folderName?: string) => {
     if (!files || files.length === 0) return;
+    setErrorMsg(null);
+    setImportedCount(null);
     setIsProcessing(true);
     try {
       const result = await LocalMusicService.importAudioFiles(files, folderName);
+      setIsProcessing(false);
+      if (result.length === 0) {
+        setErrorMsg('No supported audio files found. Select MP3, WAV, AAC, M4A, FLAC, OGG, or OPUS.');
+        return;
+      }
       setImportedCount(result.length);
       onImportComplete(result, folderName);
-      setTimeout(() => {
-        setIsProcessing(false);
+      window.setTimeout(() => {
         setImportedCount(null);
         onClose();
       }, 1100);
     } catch (err) {
       console.error('Import audio error:', err);
       setIsProcessing(false);
+      setErrorMsg('Could not read the selected audio files. Please try again.');
     }
   };
 
   const handleScanFolder = async () => {
+    setErrorMsg(null);
+    setImportedCount(null);
     if (LocalMusicService.supportsDirectoryPicker()) {
       setIsProcessing(true);
       try {
         const res = await LocalMusicService.pickAndSaveDeviceFolder();
         if (res) {
+          setIsProcessing(false);
+          onFolderScanComplete?.();
+          if (res.songs.length === 0) {
+            setErrorMsg(`No audio files found inside "${res.folder.name}".`);
+            return;
+          }
           setImportedCount(res.songs.length);
           onImportComplete(res.songs, res.folder.name);
-          onFolderScanComplete?.();
-          setTimeout(() => {
-            setIsProcessing(false);
+          window.setTimeout(() => {
             setImportedCount(null);
             onClose();
           }, 1100);
           return;
         }
       } catch (err) {
-        // User cancelled or iframe blocked showDirectoryPicker -> fallback to webkitdirectory input
         if ((err as Error)?.name === 'AbortError') {
           setIsProcessing(false);
           return;
@@ -76,7 +98,7 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
     }
   };
@@ -91,9 +113,11 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
         }`}
       >
         {/* Header */}
-        <div className={`flex items-center justify-between pb-3.5 border-b ${
-          isLight ? 'border-red-900/10' : 'border-red-500/15'
-        }`}>
+        <div
+          className={`flex items-center justify-between pb-3.5 border-b ${
+            isLight ? 'border-red-900/10' : 'border-red-500/15'
+          }`}
+        >
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-[#DC2626]/20 text-[#EF4444]">
               <FileAudio size={20} />
@@ -108,7 +132,9 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           <button
             onClick={onClose}
             className={`min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full ${
-              isLight ? 'hover:bg-red-900/10 text-[#6E5B60] hover:text-[#140E10]' : 'hover:bg-white/10 text-[#B8A9AD] hover:text-[#FAF5F2]'
+              isLight
+                ? 'hover:bg-red-900/10 text-[#6E5B60] hover:text-[#140E10]'
+                : 'hover:bg-white/10 text-[#B8A9AD] hover:text-[#FAF5F2]'
             }`}
             aria-label="Close"
           >
@@ -124,7 +150,10 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.opus,.webm"
           className="hidden"
           onChange={(e) => {
-            if (e.target.files) handleFiles(e.target.files);
+            if (e.target.files && e.target.files.length > 0) {
+              handleFiles(e.target.files);
+            }
+            e.target.value = '';
           }}
         />
         <input
@@ -135,7 +164,10 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
           className="hidden"
           onChange={(e) => {
-            if (e.target.files) handleFiles(e.target.files, 'Device Music Folder');
+            if (e.target.files && e.target.files.length > 0) {
+              handleFiles(e.target.files, 'Device Music Folder');
+            }
+            e.target.value = '';
           }}
         />
 
@@ -147,7 +179,7 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => !isProcessing && fileInputRef.current?.click()}
           className={`my-4 p-6 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
             isDragging
               ? 'border-[#DC2626] bg-[#DC2626]/10 scale-[1.01]'
@@ -158,7 +190,7 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
         >
           {isProcessing ? (
             <div className="flex flex-col items-center gap-3 py-3">
-              <div className="w-10 h-10 border-3 border-[#DC2626] border-t-transparent rounded-full animate-spin" />
+              <div className="w-10 h-10 border-[3px] border-[#DC2626] border-t-transparent rounded-full animate-spin" />
               <p className="text-xs font-semibold text-[#EF4444]">
                 Saving tracks permanently to device library...
               </p>
@@ -168,14 +200,17 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
               <CheckCircle2 size={36} />
               <p className="text-sm font-bold">Saved {importedCount} track(s) to device!</p>
             </div>
+          ) : errorMsg ? (
+            <div className="flex flex-col items-center gap-2 py-2 text-rose-400">
+              <AlertCircle size={28} />
+              <p className="text-xs font-medium max-w-xs">{errorMsg}</p>
+            </div>
           ) : (
             <>
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#DC2626]/30 to-[#7F1D1D]/40 text-[#EF4444] border border-red-500/35 flex items-center justify-center mb-3">
                 <Upload size={22} />
               </div>
-              <h4 className="font-bold text-sm">
-                Tap to select audio files
-              </h4>
+              <h4 className="font-bold text-sm">Tap to select audio files</h4>
               <p className={`text-xs mt-1 max-w-xs ${isLight ? 'text-[#6E5B60]' : 'text-[#B8A9AD]'}`}>
                 MP3, WAV, AAC, M4A, FLAC, OGG, OPUS saved permanently for offline playback
               </p>
@@ -188,7 +223,7 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isProcessing}
-            className={`flex-1 min-h-[44px] px-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${
+            className={`flex-1 min-h-[44px] px-3 rounded-2xl border text-xs font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
               isLight
                 ? 'bg-[#F5EFEA] hover:bg-[#ECE2DC] border-red-900/15 text-[#140E10]'
                 : 'bg-[#191315] hover:bg-[#241A1D] border-red-500/20 text-[#FAF5F2]'
@@ -201,18 +236,20 @@ export const LocalImportModal: React.FC<LocalImportModalProps> = ({
           <button
             onClick={handleScanFolder}
             disabled={isProcessing}
-            className="flex-1 min-h-[44px] px-3 rounded-2xl bg-[#DC2626] hover:bg-[#EF4444] text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-red-950/35 transition-colors"
+            className="flex-1 min-h-[44px] px-3 rounded-2xl bg-[#DC2626] hover:bg-[#EF4444] disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-red-950/35 transition-colors"
           >
             <FolderSearch size={15} />
             <span>Scan Folder</span>
           </button>
         </div>
 
-        <div className={`p-3 rounded-xl border text-[11px] ${
-          isLight
-            ? 'bg-[#F5EFEA] border-red-900/10 text-[#5F4E53]'
-            : 'bg-[#0A0809] border-red-500/15 text-[#B8A9AD]'
-        }`}>
+        <div
+          className={`p-3 rounded-xl border text-[11px] ${
+            isLight
+              ? 'bg-[#F5EFEA] border-red-900/10 text-[#5F4E53]'
+              : 'bg-[#0A0809] border-red-500/15 text-[#B8A9AD]'
+          }`}
+        >
           Local tracks remain stored inside your device database across restarts and work completely offline.
         </div>
       </div>

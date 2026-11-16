@@ -24,14 +24,17 @@ export const LyricsView: React.FC<LyricsViewProps> = ({
   const activeIndex = lyrics ? LyricsService.getActiveLyricIndex(lyrics, currentTime) : -1;
   const isLight = themeMode === 'LIGHT';
 
-  // Auto-scroll to active lyric line
+  // Auto-scroll only the lyrics container to active lyric line
   useEffect(() => {
-    if (activeIndex >= 0 && containerRef.current) {
-      const activeEl = containerRef.current.children[activeIndex] as HTMLElement;
+    const container = containerRef.current;
+    if (activeIndex >= 0 && container) {
+      const activeEl = container.children[activeIndex] as HTMLElement | undefined;
       if (activeEl) {
-        activeEl.scrollIntoView({
+        const targetTop =
+          activeEl.offsetTop - container.clientHeight / 2 + activeEl.clientHeight / 2;
+        container.scrollTo({
+          top: Math.max(0, targetTop),
           behavior: 'smooth',
-          block: 'center',
         });
       }
     }

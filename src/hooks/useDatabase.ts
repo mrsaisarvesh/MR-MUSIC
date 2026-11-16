@@ -87,9 +87,10 @@ export function useDatabase() {
   }, [loadData]);
 
   const toggleFavoriteSong = useCallback(
-    async (songId: string) => {
-      await DatabaseService.toggleSongFavorite(songId);
+    async (songId: string): Promise<boolean> => {
+      const nextFav = await DatabaseService.toggleSongFavorite(songId);
       await loadData();
+      return nextFav;
     },
     [loadData]
   );

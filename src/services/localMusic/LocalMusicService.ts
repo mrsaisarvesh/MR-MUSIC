@@ -1,8 +1,9 @@
 import { Song, DeviceFolderRecord } from '../../types';
 import { DatabaseService } from '../../database/db';
+import { ARTWORK_VINYL } from '../../assets/artwork';
 
 const AUDIO_FILE_REGEX = /\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i;
-const LOCAL_ARTWORK = '/src/assets/images/sonora_vinyl_cover_1794856590606.jpg';
+const LOCAL_ARTWORK = ARTWORK_VINYL;
 
 interface FileSystemHandleWithPerm {
   kind: 'file' | 'directory';
@@ -60,40 +61,44 @@ export class LocalMusicService {
         continue;
       }
 
-      const songId = this.createDeterministicSongId(file);
-      const existingBlob = await DatabaseService.getAudioBlob(songId);
-      if (existingIds.has(songId) && existingBlob) {
-        const existingSong = existingSongs.find((s) => s.id === songId);
-        if (existingSong) importedSongs.push(existingSong);
-        continue;
+      try {
+        const songId = this.createDeterministicSongId(file);
+        const existingBlob = await DatabaseService.getAudioBlob(songId);
+        if (existingIds.has(songId) && existingBlob) {
+          const existingSong = existingSongs.find((s) => s.id === songId);
+          if (existingSong) importedSongs.push(existingSong);
+          continue;
+        }
+
+        const { title, artist, format } = this.parseTrackMetadata(file);
+        const duration = await this.getAudioDuration(file);
+        const sizeMB = Math.max(0.1, file.size / (1024 * 1024)).toFixed(1);
+
+        const newSong: Song = {
+          id: songId,
+          title,
+          artist,
+          album: folderName,
+          duration: Number.isFinite(duration) && duration > 0 ? Math.round(duration) : 180,
+          artwork: LOCAL_ARTWORK,
+          audioUrl: '',
+          genre: `Local · ${format}`,
+          year: new Date(file.lastModified || Date.now()).getFullYear(),
+          playCount: 0,
+          isFavorite: false,
+          isLocal: true,
+          isDownloaded: true,
+          fileSize: `${sizeMB} MB`,
+          addedAt: Date.now(),
+        };
+
+        await DatabaseService.saveAudioBlob(songId, file, file.type || 'audio/mpeg');
+        await DatabaseService.saveSong(newSong);
+        existingIds.add(songId);
+        importedSongs.push(newSong);
+      } catch (err) {
+        console.warn(`Skipped unreadable local audio file "${file.name}":`, err);
       }
-
-      const { title, artist, format } = this.parseTrackMetadata(file);
-      const duration = await this.getAudioDuration(file);
-      const sizeMB = Math.max(0.1, file.size / (1024 * 1024)).toFixed(1);
-
-      const newSong: Song = {
-        id: songId,
-        title,
-        artist,
-        album: folderName,
-        duration: Math.round(duration) || 180,
-        artwork: LOCAL_ARTWORK,
-        audioUrl: '',
-        genre: `Local · ${format}`,
-        year: new Date(file.lastModified || Date.now()).getFullYear(),
-        playCount: 0,
-        isFavorite: false,
-        isLocal: true,
-        isDownloaded: true,
-        fileSize: `${sizeMB} MB`,
-        addedAt: Date.now(),
-      };
-
-      await DatabaseService.saveAudioBlob(songId, file, file.type || 'audio/mpeg');
-      await DatabaseService.saveSong(newSong);
-      existingIds.add(songId);
-      importedSongs.push(newSong);
     }
 
     return importedSongs;
@@ -188,21 +193,34 @@ export class LocalMusicService {
 
   private static getAudioDuration(file: File): Promise<number> {
     return new Promise((resolve) => {
+      let settled = false;
+      let url: string | null = null;
+      const tempAudio = new Audio();
+
+      const finish = (dur: number) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        tempAudio.onloadedmetadata = null;
+        tempAudio.onerror = null;
+        tempAudio.removeAttribute('src');
+        if (url) {
+          URL.revokeObjectURL(url);
+          url = null;
+        }
+        resolve(Number.isFinite(dur) && dur > 0 ? dur : 180);
+      };
+
+      const timeoutId = window.setTimeout(() => finish(180), 4000);
+
       try {
-        const url = URL.createObjectURL(file);
-        const tempAudio = new Audio();
+        url = URL.createObjectURL(file);
         tempAudio.preload = 'metadata';
-        tempAudio.onloadedmetadata = () => {
-          URL.revokeObjectURL(url);
-          resolve(tempAudio.duration || 180);
-        };
-        tempAudio.onerror = () => {
-          URL.revokeObjectURL(url);
-          resolve(180);
-        };
+        tempAudio.onloadedmetadata = () => finish(tempAudio.duration);
+        tempAudio.onerror = () => finish(180);
         tempAudio.src = url;
       } catch {
-        resolve(180);
+        finish(180);
       }
     });
   }

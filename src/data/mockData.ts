@@ -1,9 +1,10 @@
 import { Song, Artist, Album, Playlist } from '../types';
-
-const ARTWORK_FEATURED = '/src/assets/images/sonora_featured_cover_1794856590547.jpg';
-const ARTWORK_VINYL = '/src/assets/images/sonora_vinyl_cover_1794856590606.jpg';
-const ARTWORK_NIGHT = '/src/assets/images/sonora_night_cover_1794856590681.jpg';
-const ARTWORK_SILK = '/src/assets/images/retro_red_black_wallpaper_1794859414205.jpg';
+import {
+  ARTWORK_FEATURED,
+  ARTWORK_VINYL,
+  ARTWORK_NIGHT,
+  ARTWORK_SILK,
+} from '../assets/artwork';
 
 export const INITIAL_SONGS: Song[] = [
   {

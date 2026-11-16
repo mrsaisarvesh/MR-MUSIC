@@ -10,11 +10,8 @@ import {
   PhoneCall,
   Bell,
   Zap,
-  Smartphone,
 } from 'lucide-react';
 import { UserSettings, ThemeMode } from '../../types';
-import { PWAInstallButton } from '../pwa/PWAInstallButton';
-import { usePWAInstall } from '../../hooks/usePWAInstall';
 
 interface SettingsScreenProps {
   settings: UserSettings;
@@ -62,7 +59,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   deviceFoldersCount = 0,
   themeMode,
 }) => {
-  const { isInstalled } = usePWAInstall();
   const isLight = (themeMode || settings.theme) === 'LIGHT';
   const isAmoled = (themeMode || settings.theme) === 'AMOLED';
 
@@ -291,26 +287,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </button>
         </div>
       </section>
-      {/* 5. Mobile App Installation */}
-      {!isInstalled && (
-        <section className={`p-4 rounded-3xl space-y-3 ${cardSurface}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-bold">
-              <Smartphone size={16} className="text-[#EF4444]" />
-              <span>Install on Mobile</span>
-            </div>
-            <span className="text-[11px] font-mono font-semibold text-[#EF4444]">
-              PWA Ready
-            </span>
-          </div>
-
-          <p className={`text-xs leading-relaxed ${mutedText}`}>
-            Install WALKTONE onto your Android or iPhone home screen for full-screen standalone playback and offline access.
-          </p>
-
-          <PWAInstallButton variant="card" themeMode={themeMode} />
-        </section>
-      )}
     </div>
   );
 };

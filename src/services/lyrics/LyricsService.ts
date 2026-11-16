@@ -43,6 +43,6 @@ export class LyricsService {
         return i;
       }
     }
-    return 0;
+    return lyrics[0].time === 0 ? 0 : -1;
   }
 }

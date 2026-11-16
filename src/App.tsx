@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useDatabase } from './hooks/useDatabase';
 import {
@@ -42,6 +42,7 @@ import { InterruptionSimulatorModal } from './components/modals/InterruptionSimu
 export default function App() {
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('HOME');
+  const [returnScreen, setReturnScreen] = useState<'HOME' | 'SEARCH' | 'LIBRARY'>('HOME');
   const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
@@ -63,11 +64,18 @@ export default function App() {
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current !== null) {
+      clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
 
   // Audio Engine Hook
   const audio = useAudioPlayer();
@@ -79,27 +87,47 @@ export default function App() {
   const themeMode: ThemeMode = db.settings?.theme || 'DARK';
   const themeColors = THEME_COLORS[themeMode] || THEME_COLORS.DARK;
 
-  // Sync initial queue if not loaded
+  // Sync initial queue and keep audio engine metadata synced with database updates
   useEffect(() => {
-    if (!audio.currentSong && db.songs.length > 0) {
-      audio.setQueue(db.songs, 0);
+    if (db.songs.length > 0) {
+      if (!audio.currentSong) {
+        audio.setQueue(db.songs, 0);
+      } else {
+        audio.syncSongsMetadata(db.songs);
+      }
     }
   }, [db.songs]);
 
   // Screen Navigation Helpers
+  const rememberTabOrigin = () => {
+    if (currentScreen === 'HOME' || currentScreen === 'SEARCH' || currentScreen === 'LIBRARY') {
+      setReturnScreen(currentScreen);
+    }
+  };
+
   const navigateToArtist = (artistId: string) => {
+    rememberTabOrigin();
     setSelectedArtistId(artistId);
     setCurrentScreen('ARTIST_DETAIL');
   };
 
   const navigateToAlbum = (albumId: string) => {
+    rememberTabOrigin();
     setSelectedAlbumId(albumId);
     setCurrentScreen('ALBUM_DETAIL');
   };
 
   const navigateToPlaylist = (playlistId: string) => {
+    rememberTabOrigin();
     setSelectedPlaylistId(playlistId);
     setCurrentScreen('PLAYLIST_DETAIL');
+  };
+
+  const exitDetailScreen = () => {
+    setCurrentScreen(returnScreen);
+    setSelectedArtistId(null);
+    setSelectedAlbumId(null);
+    setSelectedPlaylistId(null);
   };
 
   const handleNavigateBack = () => {
@@ -112,10 +140,7 @@ export default function App() {
       currentScreen === 'ALBUM_DETAIL' ||
       currentScreen === 'PLAYLIST_DETAIL'
     ) {
-      setCurrentScreen('HOME');
-      setSelectedArtistId(null);
-      setSelectedAlbumId(null);
-      setSelectedPlaylistId(null);
+      exitDetailScreen();
       return;
     }
     if (osView === 'APP' && currentScreen !== 'HOME') {
@@ -150,22 +175,26 @@ export default function App() {
 
   const handleShuffleAll = (songsToShuffle: Song[]) => {
     if (songsToShuffle.length > 0) {
-      const shuffled = [...songsToShuffle].sort(() => Math.random() - 0.5);
-      audio.playSong(shuffled[0], shuffled, 0);
+      const shuffled = [...songsToShuffle];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
       if (!audio.shuffleEnabled) {
         audio.toggleShuffle();
       }
+      audio.playSong(shuffled[0], shuffled, 0);
       db.incrementPlayCount(shuffled[0].id);
       showToast(`Shuffling ${songsToShuffle.length} tracks`);
     }
   };
 
   const handleToggleFavorite = async (songId: string) => {
-    await db.toggleFavorite(songId);
-    const updated = db.songs.find((s) => s.id === songId);
-    if (updated) {
+    const targetSong = db.songs.find((s) => s.id === songId);
+    const isNowFavorite = await db.toggleFavorite(songId);
+    if (targetSong) {
       showToast(
-        updated.isFavorite ? `Added "${updated.title}" to Favorites` : `Removed from Favorites`
+        isNowFavorite ? `Added "${targetSong.title}" to Favorites` : 'Removed from Favorites'
       );
     }
   };
@@ -194,11 +223,8 @@ export default function App() {
       audio.handleAudioInterruption('BEGAN');
       showToast('Bluetooth Disconnected: Playback stopped');
     } else if (type === 'ALARM_DUCK') {
-      audio.handleAudioInterruption('DUCK');
+      audio.triggerInterruption('ALARM_DUCK');
       showToast('System Alert: Audio ducked to 20% for 3s');
-      setTimeout(() => {
-        audio.handleAudioInterruption('UNDUCK');
-      }, 3000);
     }
   };
 
@@ -305,7 +331,7 @@ export default function App() {
                 artists={db.artists}
                 albums={db.albums}
                 playlists={db.playlists}
-                recentSongs={db.songs.slice(0, 8)}
+                recentSongs={db.recentSongs}
                 onPlaySong={handlePlaySong}
                 onSelectArtist={navigateToArtist}
                 onSelectAlbum={navigateToAlbum}
@@ -370,8 +396,8 @@ export default function App() {
                 onUpdateSettings={db.updateSettings}
                 onTriggerInterruption={handleTriggerInterruption}
                 onOpenImportModal={() => setIsImportModalOpen(true)}
-                onClearCache={() => {
-                  db.clearAllData();
+                onClearCache={async () => {
+                  await db.clearAllData();
                   showToast('Stream cache cleared (local music kept)');
                 }}
                 localSongsCount={db.songs.filter((s) => s.isLocal).length}
@@ -385,7 +411,7 @@ export default function App() {
                 artist={selectedArtist}
                 songs={db.songs}
                 albums={db.albums}
-                onBack={() => setCurrentScreen('HOME')}
+                onBack={exitDetailScreen}
                 onPlaySong={handlePlaySong}
                 onPlayAll={handlePlayAll}
                 onShuffleAll={handleShuffleAll}
@@ -400,7 +426,7 @@ export default function App() {
               <AlbumScreen
                 album={selectedAlbum}
                 songs={db.songs}
-                onBack={() => setCurrentScreen('LIBRARY')}
+                onBack={exitDetailScreen}
                 onPlaySong={handlePlaySong}
                 onPlayAll={handlePlayAll}
                 onShuffleAll={handleShuffleAll}
@@ -414,7 +440,7 @@ export default function App() {
               <PlaylistScreen
                 playlist={selectedPlaylist}
                 allSongs={db.songs}
-                onBack={() => setCurrentScreen('LIBRARY')}
+                onBack={exitDetailScreen}
                 onPlaySong={handlePlaySong}
                 onPlayAll={handlePlayAll}
                 onShuffleAll={handleShuffleAll}
@@ -460,6 +486,7 @@ export default function App() {
           isOpen={isFullPlayerOpen}
           onClose={() => setIsFullPlayerOpen(false)}
           currentSong={audio.currentSong}
+          currentIndex={audio.currentIndex}
           isPlaying={audio.isPlaying}
           position={audio.position}
           duration={audio.duration}
@@ -488,6 +515,7 @@ export default function App() {
           getEqualizerBands={audio.getEqualizerBands}
           getFrequencyData={audio.getFrequencyData}
           getWaveformData={audio.getWaveformData}
+          onShowToast={showToast}
           themeMode={themeMode}
         />
 
@@ -506,9 +534,11 @@ export default function App() {
         <LocalImportModal
           isOpen={isImportModalOpen}
           onClose={() => setIsImportModalOpen(false)}
-          onImportComplete={(newSongs) => {
-            db.importLocalSongs(newSongs);
-            showToast(`Saved ${newSongs.length} local audio track(s)`);
+          onImportComplete={async (newSongs) => {
+            await db.refreshData();
+            if (newSongs.length > 0) {
+              showToast(`Saved ${newSongs.length} local audio track(s)`);
+            }
           }}
           onFolderScanComplete={() => db.refreshData()}
           themeMode={themeMode}

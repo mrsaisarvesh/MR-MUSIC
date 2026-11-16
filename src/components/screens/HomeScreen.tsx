@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Play, Pause, Heart, ChevronRight, ListMusic, Disc, User, HardDrive, FolderPlus, RefreshCw } from 'lucide-react';
 import { Song, Artist, Album, Playlist } from '../../types';
 import { SonoraLogo } from '../brand/SonoraLogo';
-import { PWAInstallButton } from '../pwa/PWAInstallButton';
 
 interface HomeScreenProps {
   songs: Song[];
@@ -174,7 +173,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </p>
           </div>
         </div>
-        <PWAInstallButton variant="compact" themeMode={themeMode} />
       </header>
 
       {/* Vertical Feed Selector */}
@@ -283,9 +281,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {recentSongs.length} tracks
             </span>
           </div>
-          <div className="flex flex-col space-y-2">
-            {recentSongs.map((song, idx) => renderTrackRow(song, idx, recentSongs))}
-          </div>
+          {recentSongs.length === 0 ? (
+            <div className={`text-center py-10 px-4 rounded-2xl space-y-2 ${rowSurface}`}>
+              <Disc size={26} className="mx-auto text-[#EF4444] opacity-80" />
+              <p className="text-sm font-semibold">No listening history yet</p>
+              <p className={`text-xs ${mutedText}`}>
+                Play any track and your recently spun tapes will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col space-y-2">
+              {recentSongs.map((song, idx) => renderTrackRow(song, idx, recentSongs))}
+            </div>
+          )}
         </section>
       )}
 

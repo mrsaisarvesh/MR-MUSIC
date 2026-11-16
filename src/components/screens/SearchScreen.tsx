@@ -47,21 +47,41 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
 
   const mutedText = isLight ? 'text-[#6E5B60]' : 'text-[#B8A9AD]';
 
+  const GENRE_KEYWORDS: Record<string, string[]> = {
+    'genre-synth': ['synth', 'electronic'],
+    'genre-lofi': ['lo-fi', 'lofi'],
+    'genre-cyber': ['cyber', 'retro', 'electro'],
+    'genre-piano': ['piano', 'classical'],
+    'genre-world': ['world', 'house'],
+  };
+
+  const recordSearch = (term: string) => {
+    const clean = term.trim();
+    if (!clean) return;
+    setRecentSearches((prev) =>
+      [clean, ...prev.filter((t) => t.toLowerCase() !== clean.toLowerCase())].slice(0, 6)
+    );
+  };
+
   const filteredResults = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q && selectedGenre === 'genre-all') {
       return { songs: [], artists: [], albums: [] };
     }
 
+    const keywords = GENRE_KEYWORDS[selectedGenre] || [];
+
     const matchedSongs = songs.filter((s) => {
       const matchQuery =
         !q ||
         s.title.toLowerCase().includes(q) ||
         s.artist.toLowerCase().includes(q) ||
+        s.album.toLowerCase().includes(q) ||
         s.genre.toLowerCase().includes(q);
+      const genreLower = s.genre.toLowerCase();
       const matchGenre =
         selectedGenre === 'genre-all' ||
-        s.genre.toLowerCase().includes(selectedGenre.replace('genre-', ''));
+        keywords.some((kw) => genreLower.includes(kw));
       return matchQuery && matchGenre;
     });
 
@@ -169,7 +189,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                     {filteredResults.songs.map((song) => (
                       <div
                         key={song.id}
-                        onClick={() => onPlaySong(song, filteredResults.songs)}
+                        onClick={() => {
+                          recordSearch(query || song.title);
+                          onPlaySong(song, filteredResults.songs);
+                        }}
                         className={`snap-start flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-colors min-h-[60px] active:scale-[0.99] ${rowSurface}`}
                       >
                         <img
@@ -201,7 +224,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                     {filteredResults.artists.map((artist) => (
                       <button
                         key={artist.id}
-                        onClick={() => onSelectArtist(artist.id)}
+                        onClick={() => {
+                          recordSearch(query || artist.name);
+                          onSelectArtist(artist.id);
+                        }}
                         className={`snap-start w-full flex items-center gap-3 p-2.5 rounded-2xl text-left min-h-[60px] active:scale-[0.99] ${rowSurface}`}
                       >
                         <img
@@ -232,7 +258,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                     {filteredResults.albums.map((album) => (
                       <button
                         key={album.id}
-                        onClick={() => onSelectAlbum(album.id)}
+                        onClick={() => {
+                          recordSearch(query || album.title);
+                          onSelectAlbum(album.id);
+                        }}
                         className={`snap-start w-full flex items-center gap-3 p-2.5 rounded-2xl text-left min-h-[60px] active:scale-[0.99] ${rowSurface}`}
                       >
                         <img

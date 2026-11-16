@@ -34,9 +34,9 @@ export function useAudioPlayer() {
     };
   }, []);
 
-  const playSong = useCallback((song: Song, queueList?: Song[]) => {
+  const playSong = useCallback((song: Song, queueList?: Song[], startIndex?: number) => {
     if (queueList && queueList.length > 0) {
-      const idx = queueList.findIndex(s => s.id === song.id);
+      const idx = startIndex !== undefined ? startIndex : queueList.findIndex(s => s.id === song.id);
       audioService.setQueueAndPlay(queueList, Math.max(0, idx));
     } else {
       audioService.play(song);
@@ -107,6 +107,10 @@ export function useAudioPlayer() {
     audioService.clearQueue();
   }, []);
 
+  const syncSongsMetadata = useCallback((songs: Song[]) => {
+    audioService.syncSongsMetadata(songs);
+  }, []);
+
   const handleAudioInterruption = useCallback((action: string) => {
     audioService.handleAudioInterruption(action);
   }, []);
@@ -128,6 +132,7 @@ export function useAudioPlayer() {
     position,
     duration,
     queue: audioService.queue.getQueue(),
+    currentIndex: audioService.queue.getCurrentIndex(),
     upNext: audioService.queue.getUpNext(),
     playSong,
     setQueue,
@@ -145,6 +150,7 @@ export function useAudioPlayer() {
     removeFromQueue,
     reorderQueue,
     clearQueue,
+    syncSongsMetadata,
     handleAudioInterruption,
     triggerInterruption,
     setEqualizerPreset,

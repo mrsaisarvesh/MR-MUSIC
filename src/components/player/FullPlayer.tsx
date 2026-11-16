@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ChevronDown,
   Heart,
@@ -31,6 +31,7 @@ interface FullPlayerProps {
   isOpen: boolean;
   onClose: () => void;
   currentSong: Song | null;
+  currentIndex?: number;
   isPlaying: boolean;
   position: number;
   duration: number;
@@ -60,6 +61,7 @@ interface FullPlayerProps {
   getFrequencyData: () => Uint8Array;
   getWaveformData: () => Uint8Array;
   onDownloadSong?: (song: Song) => void;
+  onShowToast?: (msg: string) => void;
   themeMode?: string;
 }
 
@@ -67,6 +69,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   isOpen,
   onClose,
   currentSong,
+  currentIndex,
   isPlaying,
   position,
   duration,
@@ -95,6 +98,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   getEqualizerBands,
   getFrequencyData,
   getWaveformData,
+  onShowToast,
   themeMode,
 }) => {
   const [activeTab, setActiveTab] = useState<'ARTWORK' | 'TRACKS' | 'LYRICS' | 'VISUALIZER'>('ARTWORK');
@@ -102,8 +106,21 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isSpeedMenuOpen, setIsSpeedMenuOpen] = useState(false);
+  const [seekDraft, setSeekDraft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSpeedMenuOpen(false);
+      setIsEqualizerOpen(false);
+      setIsQueueOpen(false);
+      setSeekDraft(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !currentSong) return null;
+
+  const effectiveDuration = duration > 0 ? duration : currentSong.duration || 180;
+  const displayedPosition = seekDraft !== null ? seekDraft : position;
 
   const formatTime = (secs: number) => {
     const totalSec = Math.floor(secs || 0);
@@ -113,7 +130,9 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   };
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onSeek(parseFloat(e.target.value));
+    const val = parseFloat(e.target.value);
+    setSeekDraft(val);
+    onSeek(val);
   };
 
   const isLight = themeMode === 'LIGHT';
@@ -121,13 +140,18 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
 
   const handleShare = () => {
     if (navigator.share) {
-      navigator.share({
-        title: currentSong.title,
-        text: `Listening to "${currentSong.title}" by ${currentSong.artist} on Walktone!`,
-        url: window.location.href,
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(`Listening to "${currentSong.title}" by ${currentSong.artist} on Walktone`);
+      navigator
+        .share({
+          title: currentSong.title,
+          text: `Listening to "${currentSong.title}" by ${currentSong.artist} on Walktone!`,
+          url: window.location.href,
+        })
+        .catch(() => {});
+    } else if (navigator.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(`Listening to "${currentSong.title}" by ${currentSong.artist} on Walktone`)
+        .then(() => onShowToast?.('Track info copied to clipboard'))
+        .catch(() => {});
     }
   };
 
@@ -454,18 +478,20 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
             <input
               type="range"
               min="0"
-              max={duration || 100}
+              max={effectiveDuration}
               step="0.1"
-              value={position}
+              value={Math.min(displayedPosition, effectiveDuration)}
               onChange={handleSeekChange}
+              onMouseUp={() => setSeekDraft(null)}
+              onTouchEnd={() => setSeekDraft(null)}
               className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-[#DC2626] hover:accent-[#EF4444] ${
                 isLight ? 'bg-red-900/15' : 'bg-white/10'
               }`}
             />
           </div>
           <div className={`flex justify-between text-[11px] font-mono tabular-nums ${mutedText}`}>
-            <span>{formatTime(position)}</span>
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(displayedPosition)}</span>
+            <span>{formatTime(effectiveDuration)}</span>
           </div>
         </div>
 
@@ -514,7 +540,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
           </button>
 
           <button
-            onClick={() => onSeek(Math.min(duration, position + 15))}
+            onClick={() => onSeek(Math.min(effectiveDuration, position + 15))}
             className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition-colors ${mutedText} ${
               isLight ? 'hover:bg-red-900/10 hover:text-[#140E10]' : 'hover:bg-red-500/10 hover:text-[#FAF5F2]'
             }`}
@@ -628,6 +654,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
         isOpen={isQueueOpen}
         onClose={() => setIsQueueOpen(false)}
         currentSong={currentSong}
+        currentIndex={currentIndex}
         queue={queue}
         upNext={upNext}
         onPlaySong={onPlaySong}

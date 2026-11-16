@@ -1,6 +1,7 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { Song, Artist, Album, Playlist, DownloadItem, UserSettings, DeviceFolderRecord } from '../types';
 import { INITIAL_SONGS, INITIAL_ARTISTS, INITIAL_ALBUMS, INITIAL_PLAYLISTS } from '../data/mockData';
+import { RETRO_WALLPAPER, resolveArtworkUrl } from '../assets/artwork';
 
 interface SonoraDB extends DBSchema {
   songs: {
@@ -155,22 +156,73 @@ export class DatabaseService {
   static async initDatabase(): Promise<void> {
     await this.requestPersistentStorage();
     const db = await getDB();
-    const existingSongs = await db.getAll('songs');
-    if (existingSongs.length === 0) {
+    const [existingSongs, existingArtists, existingAlbums, existingPlaylists, existingSettings] = await Promise.all([
+      db.getAll('songs'),
+      db.getAll('artists'),
+      db.getAll('albums'),
+      db.getAll('playlists'),
+      db.get('settings', 'user_settings'),
+    ]);
+
+    const hasCatalogSongs = existingSongs.some((s) => !s.isLocal);
+
+    if (!hasCatalogSongs || existingArtists.length === 0 || existingAlbums.length === 0 || existingPlaylists.length === 0 || !existingSettings) {
       const tx = db.transaction(['songs', 'artists', 'albums', 'playlists', 'settings'], 'readwrite');
-      for (const song of INITIAL_SONGS) {
-        await tx.objectStore('songs').put(song);
+      if (!hasCatalogSongs) {
+        for (const song of INITIAL_SONGS) {
+          await tx.objectStore('songs').put(song);
+        }
       }
-      for (const artist of INITIAL_ARTISTS) {
-        await tx.objectStore('artists').put(artist);
+      if (existingArtists.length === 0) {
+        for (const artist of INITIAL_ARTISTS) {
+          await tx.objectStore('artists').put(artist);
+        }
       }
-      for (const album of INITIAL_ALBUMS) {
-        await tx.objectStore('albums').put(album);
+      if (existingAlbums.length === 0) {
+        for (const album of INITIAL_ALBUMS) {
+          await tx.objectStore('albums').put(album);
+        }
       }
-      for (const playlist of INITIAL_PLAYLISTS) {
-        await tx.objectStore('playlists').put(playlist);
+      if (existingPlaylists.length === 0) {
+        for (const playlist of INITIAL_PLAYLISTS) {
+          await tx.objectStore('playlists').put(playlist);
+        }
       }
-      await tx.objectStore('settings').put({ id: 'user_settings', data: DEFAULT_SETTINGS });
+      if (!existingSettings) {
+        await tx.objectStore('settings').put({ id: 'user_settings', data: DEFAULT_SETTINGS });
+      }
+      await tx.done;
+    }
+
+    // Migrate any legacy /src/assets/images/... paths stored in IndexedDB to Vite-bundled asset URLs
+    const needsMigration =
+      existingSongs.some((s) => s.artwork.startsWith('/src/assets/')) ||
+      existingArtists.some((a) => a.artwork.startsWith('/src/assets/')) ||
+      existingAlbums.some((al) => al.artwork.startsWith('/src/assets/')) ||
+      existingPlaylists.some((p) => p.artwork.startsWith('/src/assets/'));
+
+    if (needsMigration) {
+      const tx = db.transaction(['songs', 'artists', 'albums', 'playlists'], 'readwrite');
+      for (const s of existingSongs) {
+        if (s.artwork.startsWith('/src/assets/')) {
+          await tx.objectStore('songs').put({ ...s, artwork: resolveArtworkUrl(s.artwork) });
+        }
+      }
+      for (const a of existingArtists) {
+        if (a.artwork.startsWith('/src/assets/')) {
+          await tx.objectStore('artists').put({ ...a, artwork: resolveArtworkUrl(a.artwork) });
+        }
+      }
+      for (const al of existingAlbums) {
+        if (al.artwork.startsWith('/src/assets/')) {
+          await tx.objectStore('albums').put({ ...al, artwork: resolveArtworkUrl(al.artwork) });
+        }
+      }
+      for (const p of existingPlaylists) {
+        if (p.artwork.startsWith('/src/assets/')) {
+          await tx.objectStore('playlists').put({ ...p, artwork: resolveArtworkUrl(p.artwork, RETRO_WALLPAPER) });
+        }
+      }
       await tx.done;
     }
   }
@@ -270,7 +322,7 @@ export class DatabaseService {
       id: `playlist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       title: title.trim() || 'Untitled Mixtape',
       description: description.trim() || 'My custom personal mixtape on Walktone.',
-      artwork: artwork || '/src/assets/images/retro_red_black_wallpaper_1794859414205.jpg',
+      artwork: resolveArtworkUrl(artwork, RETRO_WALLPAPER),
       creator: 'You',
       songIds: [],
       isCustom: true,
@@ -391,6 +443,11 @@ export class DatabaseService {
     await db.put('downloads', item);
   }
 
+  static async deleteDownloadItem(songId: string): Promise<void> {
+    const db = await getDB();
+    await db.delete('downloads', songId);
+  }
+
   // Settings
   static async getSettings(): Promise<UserSettings> {
     const db = await getDB();
@@ -410,17 +467,17 @@ export class DatabaseService {
     });
   }
 
-  // Clear stream cache while preserving permanently saved local device tracks
+  // Clear stream cache while preserving catalog metadata, settings, and permanently saved local device tracks
   static async clearAllData(): Promise<void> {
     const db = await getDB();
     const allSongs = await db.getAll('songs');
     const localSongIds = new Set(allSongs.filter((s) => s.isLocal).map((s) => s.id));
     const allBlobs = await db.getAll('audioBlobs');
 
-    const tx = db.transaction(['songs', 'history', 'downloads', 'audioBlobs', 'favorites'], 'readwrite');
+    const tx = db.transaction(['songs', 'history', 'downloads', 'audioBlobs'], 'readwrite');
     for (const song of allSongs) {
-      if (!song.isLocal) {
-        await tx.objectStore('songs').delete(song.id);
+      if (!song.isLocal && song.isDownloaded) {
+        await tx.objectStore('songs').put({ ...song, isDownloaded: false });
       }
     }
     for (const blobRec of allBlobs) {
@@ -430,15 +487,32 @@ export class DatabaseService {
     }
     await tx.objectStore('history').clear();
     await tx.objectStore('downloads').clear();
-    await tx.objectStore('favorites').clear();
     await tx.done;
   }
 
   static async deleteLocalSong(songId: string): Promise<void> {
     const db = await getDB();
-    const tx = db.transaction(['songs', 'audioBlobs'], 'readwrite');
+    const [allPlaylists, allHistory] = await Promise.all([
+      db.getAll('playlists'),
+      db.getAll('history'),
+    ]);
+    const tx = db.transaction(['songs', 'audioBlobs', 'playlists', 'history'], 'readwrite');
     await tx.objectStore('songs').delete(songId);
     await tx.objectStore('audioBlobs').delete(songId);
+    for (const pl of allPlaylists) {
+      if (pl.songIds.includes(songId)) {
+        await tx.objectStore('playlists').put({
+          ...pl,
+          songIds: pl.songIds.filter((id) => id !== songId),
+          updatedAt: Date.now(),
+        });
+      }
+    }
+    for (const hist of allHistory) {
+      if (hist.songId === songId) {
+        await tx.objectStore('history').delete(hist.id);
+      }
+    }
     await tx.done;
   }
 

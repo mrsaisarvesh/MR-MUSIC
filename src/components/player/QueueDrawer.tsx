@@ -6,6 +6,7 @@ interface QueueDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   currentSong: Song | null;
+  currentIndex?: number;
   queue: Song[];
   upNext: Song[];
   onPlaySong: (song: Song) => void;
@@ -19,6 +20,7 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
   isOpen,
   onClose,
   currentSong,
+  currentIndex,
   queue,
   upNext,
   onPlaySong,
@@ -31,6 +33,12 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
 
   const isLight = themeMode === 'LIGHT';
   const mutedText = isLight ? 'text-[#6E5B60]' : 'text-[#B8A9AD]';
+  const resolvedCurrentIdx =
+    currentIndex !== undefined && currentIndex >= 0
+      ? currentIndex
+      : currentSong
+      ? queue.findIndex((s) => s.id === currentSong.id)
+      : -1;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-fade-in select-none">
@@ -129,10 +137,11 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
             ) : (
               <div className="space-y-2">
                 {upNext.map((song, i) => {
-                  const actualQueueIndex = queue.findIndex((s) => s.id === song.id);
+                  const actualQueueIndex =
+                    resolvedCurrentIdx >= 0 ? resolvedCurrentIdx + 1 + i : i;
                   return (
                     <div
-                      key={`${song.id}-${i}`}
+                      key={`${song.id}-${actualQueueIndex}`}
                       className={`flex items-center gap-2.5 p-2 rounded-xl border transition-all group ${
                         isLight
                           ? 'bg-[#FFFDFB] hover:bg-[#ECE2DC] border-red-900/10'
@@ -156,12 +165,13 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
                       </div>
 
                       {/* Reorder up/down controls */}
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 opacity-80 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         {i > 0 && (
                           <button
                             onClick={() => onReorderQueue(actualQueueIndex, actualQueueIndex - 1)}
-                            className={`p-1 rounded ${isLight ? 'hover:bg-red-900/10 text-[#6E5B60]' : 'hover:bg-white/10 text-[#B8A9AD]'}`}
+                            className={`p-1.5 rounded ${isLight ? 'hover:bg-red-900/10 text-[#6E5B60]' : 'hover:bg-white/10 text-[#B8A9AD]'}`}
                             title="Move Up"
+                            aria-label="Move Up"
                           >
                             <ArrowUp size={13} />
                           </button>
@@ -169,16 +179,18 @@ export const QueueDrawer: React.FC<QueueDrawerProps> = ({
                         {i < upNext.length - 1 && (
                           <button
                             onClick={() => onReorderQueue(actualQueueIndex, actualQueueIndex + 1)}
-                            className={`p-1 rounded ${isLight ? 'hover:bg-red-900/10 text-[#6E5B60]' : 'hover:bg-white/10 text-[#B8A9AD]'}`}
+                            className={`p-1.5 rounded ${isLight ? 'hover:bg-red-900/10 text-[#6E5B60]' : 'hover:bg-white/10 text-[#B8A9AD]'}`}
                             title="Move Down"
+                            aria-label="Move Down"
                           >
                             <ArrowDown size={13} />
                           </button>
                         )}
                         <button
                           onClick={() => onRemoveFromQueue(actualQueueIndex)}
-                          className={`p-1 rounded hover:bg-rose-500/20 hover:text-rose-400 ml-1 ${mutedText}`}
+                          className={`p-1.5 rounded hover:bg-rose-500/20 hover:text-rose-400 ml-0.5 ${mutedText}`}
                           title="Remove from queue"
+                          aria-label="Remove from queue"
                         >
                           <Trash2 size={13} />
                         </button>

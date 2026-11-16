@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { DevicePlatform, ScreenType, Song, ThemeMode } from '../../types';
 import { SonoraLogo } from '../brand/SonoraLogo';
+import { RETRO_WALLPAPER as WALLPAPER_URL } from '../../assets/artwork';
 
 export type OSViewMode = 'LOCKED' | 'HOME' | 'APP' | 'RECENTS';
 
@@ -69,8 +70,6 @@ interface MobileOSShellProps {
   onNavigateBack: () => void;
   children: React.ReactNode;
 }
-
-const WALLPAPER_URL = '/src/assets/images/retro_red_black_wallpaper_1794859414205.jpg';
 
 export const MobileOSShell: React.FC<MobileOSShellProps> = ({
   platform,
@@ -531,7 +530,7 @@ export const MobileOSShell: React.FC<MobileOSShellProps> = ({
 
         {/* VIEW 3: APP SWITCHER */}
         {osView === 'RECENTS' && (
-          <div className="absolute inset-0 z-25 bg-[#0A0809]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-[#FAF5F2] animate-fade-in">
+          <div className="absolute inset-0 z-[25] bg-[#0A0809]/95 backdrop-blur-xl flex flex-col justify-between p-5 text-[#FAF5F2] animate-fade-in">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold font-display">Open Apps</h2>
               <button
